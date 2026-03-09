@@ -1,0 +1,37 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+
+plugins {
+    id "com.gradleup.shadow" version "9.3.0"
+    id 'java'
+}
+
+group 'com.github.hapily04.skriptbdengine'
+version '1.0.0'
+
+compileJava.options.encoding = 'UTF-8'
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
+    maven { url = "https://maven.hapily.me/snapshots"}
+    maven { url = "https://maven.hapily.me/releases"}
+}
+
+dependencies {
+    compileOnly "com.github.hapily04.skriptminestom:common:1.0.0-alpha.1"
+    compileOnly "com.github.hapily04.skriptminestom:minestom:1.0.0-alpha.1"
+    compileOnly "net.minestom:minestom-sm:2026.03.04-1.21.11"
+    implementation "org.joml:joml:1.10.8"
+}
+
+processResources {
+    filter ReplaceTokens, tokens: [
+            'version': version
+    ]
+}

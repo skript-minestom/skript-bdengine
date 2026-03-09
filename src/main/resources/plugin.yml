@@ -1,0 +1,6 @@
+name: skript-bdengine
+main: com.github.hapily04.skriptbdengine.SkriptBDEngine
+version: @version@
+api-version: 1.13
+authors: [hapily]
+softdepend: [Skript]
