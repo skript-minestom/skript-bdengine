@@ -3,6 +3,8 @@ package com.github.hapily04.skriptbdengine.api;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.minestom.server.MinecraftServer;
@@ -15,6 +17,7 @@ import net.minestom.server.entity.EntityType;
 import net.minestom.server.entity.Player;
 import net.minestom.server.entity.PlayerSkin;
 import net.minestom.server.entity.metadata.EntityMeta;
+import net.minestom.server.entity.metadata.display.AbstractDisplayMeta;
 import net.minestom.server.entity.metadata.display.BlockDisplayMeta;
 import net.minestom.server.entity.metadata.display.ItemDisplayMeta;
 import net.minestom.server.entity.metadata.display.TextDisplayMeta;
@@ -26,9 +29,6 @@ import net.minestom.server.network.player.ResolvableProfile;
 import net.minestom.server.timer.ExecutionType;
 import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Matrix4f;
-import org.joml.Quaternionf;
-import org.joml.Vector3f;
 import org.jspecify.annotations.NonNull;
 
 import java.util.*;
@@ -46,7 +46,8 @@ public class AnimationModel extends StationaryEntity {
     public boolean isDestroyed = false;
     public List<List<Entity>> groups = new ArrayList<>();
     private final Entity[] entities;
-    private JSON.Data data;
+    private final Map<String, Entity> entitiesByTag = new HashMap<>();
+    private final JSON.Data data;
     private RunningAnimation runningAnimation;
     boolean initialized = false;
 
@@ -62,9 +63,12 @@ public class AnimationModel extends StationaryEntity {
                 JsonElement jsonElement = GSON.fromJson(nbt, JsonElement.class);
                 JsonObject obj = jsonElement.getAsJsonObject();
                 JsonArray passengers = obj.getAsJsonArray("Passengers");
-                if (passengers == null) continue;
-                for (JsonElement e : passengers) {
-                    entities.add(createEntity(e.getAsJsonObject()));
+                if (passengers != null) {
+                    for (JsonElement e : passengers) {
+                        entities.add(createEntity(e.getAsJsonObject()));
+                    }
+                } else if (obj.has("id")) {
+                    entities.add(createEntity(obj));
                 }
             }
         }
@@ -73,31 +77,57 @@ public class AnimationModel extends StationaryEntity {
         initialized = true;
     }
 
+    public @Nullable Entity getEntityByTag(String tag) {
+        return entitiesByTag.get(tag);
+    }
+
+    private void registerEntityTag(String tag, Entity entity) {
+        if (tag == null || tag.isEmpty()) return;
+        entitiesByTag.put(tag, entity);
+    }
+
+    private void registerEntityTags(JsonObject json, Entity entity) {
+        if (!json.has("Tags")) return;
+        JsonArray tags = json.getAsJsonArray("Tags");
+        for (JsonElement tagElement : tags) {
+            registerEntityTag(tagElement.getAsString(), entity);
+        }
+    }
+
     @Override
     public @NonNull CompletableFuture<Void> setInstance(@NonNull Instance instance, @NonNull Pos spawnPosition) {
+        if (isDestroyed) return CompletableFuture.completedFuture(null);
         int entitySize = entities.length;
-        CompletableFuture<?>[] futures = new CompletableFuture[entitySize+1];
+        CompletableFuture<?>[] futures = new CompletableFuture[entitySize + 1];
         futures[0] = super.setInstance(instance, spawnPosition);
-        for (int i = 1; i < entitySize+1; i++) {
-            futures[i] = entities[i-1].setInstance(instance, spawnPosition);
+        for (int i = 1; i < entitySize + 1; i++) {
+            futures[i] = entities[i - 1].setInstance(instance, spawnPosition);
         }
         return CompletableFuture.allOf(futures).whenComplete((unused, throwable) -> {
             if (throwable != null) return;
             for (Entity e : entities) {
-                addPassenger(e);
+                if (!isCameraEntity(e)) addPassenger(e);
             }
         });
     }
 
+    private boolean isCameraEntity(Entity entity) {
+        for (Map.Entry<String, Entity> entry : entitiesByTag.entrySet()) {
+            if (entry.getValue() == entity && entry.getKey().endsWith("_camera")) return true;
+        }
+        return false;
+    }
+
     @SuppressWarnings("MagicConstant")
     @Override
-    public @NonNull CompletableFuture<Void> teleport(@NonNull Pos position, @NonNull Vec velocity, long @Nullable [] chunks,
+    public @NonNull CompletableFuture<Void> teleport(@NonNull Pos position, @NonNull Vec velocity, long [] chunks,
                                                      int flags, boolean shouldConfirm) {
+        if (isDestroyed) return CompletableFuture.completedFuture(null);
         int entitySize = entities.length;
-        CompletableFuture<?>[] futures = new CompletableFuture[entitySize+1];
+        CompletableFuture<?>[] futures = new CompletableFuture[entitySize + 1];
         futures[0] = super.teleport(position, velocity, chunks, flags, shouldConfirm);
-        for (int i = 1; i < entitySize+1; i++) {
-            futures[i] = entities[i-1].teleport(position, velocity, chunks, flags, shouldConfirm);
+        for (int i = 1; i < entitySize + 1; i++) {
+            futures[i] = entities[i - 1].teleport(position, velocity, chunks, flags, shouldConfirm);
         }
         return CompletableFuture.allOf(futures);
     }
@@ -220,30 +250,15 @@ public class AnimationModel extends StationaryEntity {
 
         Entity entity = new StationaryEntity(isItem ? EntityType.ITEM_DISPLAY : (isBlock ? EntityType.BLOCK_DISPLAY : EntityType.TEXT_DISPLAY));
 
-        Matrix4f matrix = new Matrix4f();
         JsonArray m = json.get("transformation").getAsJsonArray();
-        for (int i = 0; i < 16; i++) matrix.set(i / 4, i % 4, m.get(i).getAsFloat());
-        matrix.transpose();
-
-        Vector3f transform = new Vector3f();
-        matrix.getTranslation(transform);
-        Vector3f scale = new Vector3f();
-        matrix.getScale(scale);
-        Quaternionf rotation = new Quaternionf();
-        matrix.getUnnormalizedRotation(rotation);
-
-        float[] leftRotation = new float[]{rotation.x, rotation.y, rotation.z, rotation.w};
-        Vec translation = new Vec(transform.x, transform.y, transform.z);
-        Vec vecScale = new Vec(scale.x, scale.y, scale.z);
+        DisplayMatrixUtil.CachedTransform transform = DisplayMatrixUtil.cacheFromJsonArray(m);
 
         if (isBlock) {
             BlockDisplayMeta meta = (BlockDisplayMeta) entity.getEntityMeta();
             JsonObject block = json.get("block_state").getAsJsonObject();
             Block blockState = buildBlock(block);
             meta.setBlockState(blockState);
-            meta.setLeftRotation(leftRotation);
-            meta.setTranslation(translation);
-            meta.setScale(vecScale);
+            transform.applyTo(meta);
         } else if (isItem) {
             ItemDisplayMeta meta = (ItemDisplayMeta) entity.getEntityMeta();
             Material material = Material.fromKey(json.get("item").getAsJsonObject().get("id").getAsString());
@@ -259,15 +274,21 @@ public class AnimationModel extends StationaryEntity {
                 itemStack = itemStack.with(DataComponents.PROFILE, profile);
             }
             meta.setItemStack(itemStack);
-            meta.setLeftRotation(leftRotation);
-            meta.setTranslation(translation);
-            meta.setScale(vecScale);
+            transform.applyTo(meta);
+            if (json.has("item_display")) {
+                String displayContext = json.get("item_display").getAsString();
+                if (displayContext != null) {
+                    try {
+                        meta.setDisplayContext(ItemDisplayMeta.DisplayContext.valueOf(displayContext.toUpperCase(Locale.ROOT)));
+                    } catch (IllegalArgumentException ignored) {}
+                }
+            }
+            if (json.has("width")) meta.setWidth(json.get("width").getAsFloat());
+            if (json.has("height")) meta.setHeight(json.get("height").getAsFloat());
         } else {
             // Text display
             TextDisplayMeta meta = (TextDisplayMeta) entity.getEntityMeta();
-            meta.setLeftRotation(leftRotation);
-            meta.setTranslation(translation);
-            meta.setScale(vecScale);
+            transform.applyTo(meta);
 
             if (json.has("text")) {
                 JsonElement textElement = json.get("text");
@@ -323,7 +344,33 @@ public class AnimationModel extends StationaryEntity {
             if (json.has("default_background")) meta.setUseDefaultBackground(json.get("default_background").getAsBoolean());
         }
 
+        registerEntityTags(json, entity);
         return entity;
+    }
+
+    static void precomputeAnimationTransforms(JSON.Data data) {
+        if (data.animations == null) return;
+        for (JSON.AnimationJson animation : data.animations) {
+            if (animation.keyframes == null) continue;
+            for (JSON.KeyFrame keyFrame : animation.keyframes) {
+                if (keyFrame.objects == null) continue;
+                for (JSON.Object object : keyFrame.objects) {
+                    cacheCommandTransform(object.commands);
+                }
+            }
+        }
+    }
+
+    private static void cacheCommandTransform(JSON.Commands commands) {
+        if (commands == null || commands.transformation == null || commands.displayTransform != null) return;
+        commands.displayTransform = DisplayMatrixUtil.cacheFromFlat(commands.transformation);
+        commands.transformation = null;
+    }
+
+    private static void applyAnimatedTransformation(AbstractDisplayMeta meta) {
+        meta.setTransformationInterpolationStartDelta(0);
+        meta.setTransformationInterpolationDuration(2);
+        meta.setPosRotInterpolationDuration(2);
     }
 
     private Block buildBlock(JsonObject block) {
@@ -333,6 +380,43 @@ public class AnimationModel extends StationaryEntity {
             properties.put(entry.getKey(), entry.getValue().getAsString());
         }
         return Block.fromKey(block.get("Name").getAsString()).withProperties(properties);
+    }
+
+    private void playKeyframeSounds(JSON.KeyFrame keyFrame) {
+        if (keyFrame.sounds == null || keyFrame.sounds.isEmpty()) return;
+
+        Instance instance = getInstance();
+        if (instance == null) return;
+
+        Pos root = getPosition();
+        Collection<Player> players = instance.getPlayers();
+        if (players.isEmpty()) return;
+
+        for (JSON.SoundEffect soundEffect : keyFrame.sounds) {
+            if (soundEffect.sound == null || soundEffect.sound.isEmpty()) continue;
+
+            String soundKey = soundEffect.sound.contains(":")
+                ? soundEffect.sound
+                : "minecraft:" + soundEffect.sound;
+            Sound.Source source = Sound.Source.BLOCK;
+            if (soundEffect.source != null) {
+                try {
+                    source = Sound.Source.valueOf(soundEffect.source.toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException ignored) {}
+            }
+
+            float volume = soundEffect.volume != null ? soundEffect.volume : 1f;
+            float pitch = soundEffect.pitch != null ? soundEffect.pitch : 1f;
+            Pos at = new Pos(
+                root.x() + (soundEffect.x != null ? soundEffect.x : 0d),
+                root.y() + (soundEffect.y != null ? soundEffect.y : 0d),
+                root.z() + (soundEffect.z != null ? soundEffect.z : 0d)
+            );
+            Sound sound = Sound.sound(Key.key(soundKey), source, volume, pitch);
+            for (Player player : players) {
+                player.playSound(sound, at);
+            }
+        }
     }
 
     private JSON.AnimationJson getAnimation(String name) {
@@ -376,7 +460,19 @@ public class AnimationModel extends StationaryEntity {
     static class JSON {
         public static class Commands {
             public float[] transformation;
+            public transient DisplayMatrixUtil.CachedTransform displayTransform;
             public String head;
+            public String text;
+            public Integer background;
+            public Integer textOpacity;
+            public String alignment;
+            public Float lineWidth;
+            public Boolean defaultBackground;
+            public Double x;
+            public Double y;
+            public Double z;
+            public Float yaw;
+            public Float pitch;
         }
 
         public static class Object {
@@ -386,6 +482,22 @@ public class AnimationModel extends StationaryEntity {
 
         public static class KeyFrame {
             public List<Object> objects;
+            public List<SoundEffect> sounds;
+        }
+
+        public static class SoundEffect {
+            public String sound;
+            public String source;
+            public Double x;
+            public Double y;
+            public Double z;
+            public Float volume;
+            public Float pitch;
+        }
+
+        public static class CameraJson {
+            public String tag;
+            public String type;
         }
 
         public static class AnimationJson {
@@ -396,6 +508,7 @@ public class AnimationModel extends StationaryEntity {
         public static class Data {
             public List<String> nbt;
             public List<AnimationJson> animations;
+            public CameraJson camera;
         }
     }
 
@@ -425,61 +538,42 @@ public class AnimationModel extends StationaryEntity {
                     else return TaskSchedule.stop();
                 }
                 JSON.KeyFrame kf = keyFrames.get(frameId.getAndIncrement());
+                playKeyframeSounds(kf);
+                if (kf.objects == null) return TaskSchedule.tick(2);
                 for (JSON.Object obj : kf.objects) {
-                    int id = Integer.parseInt(obj.tag.replaceAll("\\D", ""));
-                    Entity entity = groups.getFirst().get(id);
+                    Entity entity = entitiesByTag.get(obj.tag);
+                    if (entity == null) {
+                        int id = Integer.parseInt(obj.tag.replaceAll("\\D", ""));
+                        entity = groups.getFirst().get(id);
+                    }
 
                     JSON.Commands commands = obj.commands;
                     if (commands != null) {
+                        if (commands.x != null && commands.y != null && commands.z != null) {
+                            Pos root = AnimationModel.this.getPosition();
+                            float yaw = commands.yaw != null ? commands.yaw : root.yaw();
+                            float pitch = commands.pitch != null ? commands.pitch : root.pitch();
+                            entity.teleport(new Pos(
+                                root.x() + commands.x,
+                                root.y() + commands.y,
+                                root.z() + commands.z,
+                                yaw,
+                                pitch
+                            ));
+                        }
+
                         if (commands.head != null && !commands.head.isEmpty() && entity.getEntityType() == EntityType.ITEM_DISPLAY) {
                             ResolvableProfile profile = new ResolvableProfile(new PlayerSkin(commands.head, ""));
                             ItemDisplayMeta meta = (ItemDisplayMeta) entity.getEntityMeta();
                             meta.setItemStack(meta.getItemStack().with(DataComponents.PROFILE, profile));
                         }
 
-                        if (commands.transformation != null) {
-                            Matrix4f matrix = new Matrix4f();
-                            matrix.set(commands.transformation);
-                            matrix.transpose();
-
-                            Vector3f transform = new Vector3f();
-                            matrix.getTranslation(transform);
-
-                            Vector3f scale = new Vector3f();
-                            matrix.getScale(scale);
-
-                            Quaternionf rotation = new Quaternionf();
-                            matrix.getUnnormalizedRotation(rotation);
-
-                            float[] leftRotation = {rotation.x, rotation.y, rotation.z, rotation.w};
-                            Vec translation = new Vec(transform.x, transform.y, transform.z);
-                            Vec scaleVec = new Vec(scale.x, scale.y, scale.z);
+                        if (commands.displayTransform != null) {
                             EntityMeta entityMeta = entity.getEntityMeta();
                             entityMeta.setNotifyAboutChanges(false);
-                            if (entity.getEntityType() == EntityType.BLOCK_DISPLAY) {
-                                BlockDisplayMeta meta = (BlockDisplayMeta) entityMeta;
-                                meta.setLeftRotation(leftRotation);
-                                meta.setTranslation(translation);
-                                meta.setScale(scaleVec);
-                                meta.setTransformationInterpolationStartDelta(0);
-                                meta.setTransformationInterpolationDuration(2);
-                                meta.setPosRotInterpolationDuration(2);
-                            } else if (entity.getEntityType() == EntityType.ITEM_DISPLAY) {
-                                ItemDisplayMeta meta = (ItemDisplayMeta) entityMeta;
-                                meta.setLeftRotation(leftRotation);
-                                meta.setTranslation(translation);
-                                meta.setScale(scaleVec);
-                                meta.setTransformationInterpolationStartDelta(0);
-                                meta.setTransformationInterpolationDuration(2);
-                                meta.setPosRotInterpolationDuration(2);
-                            } else if (entity.getEntityType() == EntityType.TEXT_DISPLAY) {
-                                TextDisplayMeta meta = (TextDisplayMeta) entityMeta;
-                                meta.setLeftRotation(leftRotation);
-                                meta.setTranslation(translation);
-                                meta.setScale(scaleVec);
-                                meta.setTransformationInterpolationStartDelta(0);
-                                meta.setTransformationInterpolationDuration(2);
-                                meta.setPosRotInterpolationDuration(2);
+                            if (entityMeta instanceof AbstractDisplayMeta displayMeta) {
+                                commands.displayTransform.applyTo(displayMeta);
+                                applyAnimatedTransformation(displayMeta);
                             }
                             entityMeta.setNotifyAboutChanges(true);
                         }

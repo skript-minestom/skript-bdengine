@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 
 public class ExprModel extends SimpleExpression<AnimationModel> {
 
@@ -26,6 +27,20 @@ public class ExprModel extends SimpleExpression<AnimationModel> {
     private Expression<String> modelId;
 
     @SuppressWarnings("unchecked")
+    private static boolean isFunctionFolderNewer(File functionFolder, File convertedFile) throws IOException {
+        long convertedAt = convertedFile.lastModified();
+        try (var paths = Files.walk(functionFolder.toPath())) {
+            return paths.filter(Files::isRegularFile)
+                .anyMatch(path -> {
+                    try {
+                        return Files.getLastModifiedTime(path).toMillis() > convertedAt;
+                    } catch (IOException e) {
+                        return false;
+                    }
+                });
+        }
+    }
+
     @Override
     public boolean init(Expression<?>[] expressions, int i, Kleenean kleenean, SkriptParser.ParseResult parseResult) {
         modelId = (Expression<String>) expressions[0];
@@ -49,11 +64,12 @@ public class ExprModel extends SimpleExpression<AnimationModel> {
     private AnimationModel getAnimationModel(SkriptBDEngine addon, String modelId) throws IOException {
         ModelManager modelManager = addon.getModelManager();
         File convertedFile = new File(addon.getConvertedFolder(), modelId + ".json");
-        if (!convertedFile.exists()) {
-            File functionFolder = new File(addon.getFunctionsFolder(), modelId);
-            if (!functionFolder.isDirectory() || !functionFolder.exists()) return null;
+        File functionFolder = new File(addon.getFunctionsFolder(), modelId);
+        if (functionFolder.isDirectory() && functionFolder.exists()
+            && (!convertedFile.exists() || isFunctionFolderNewer(functionFolder, convertedFile))) {
             BdEngineModelConverter.convert(functionFolder, convertedFile);
         }
+        if (!convertedFile.exists()) return null;
         return modelManager.getAnimationModel(modelId).join();
     }
 

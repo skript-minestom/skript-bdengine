@@ -24,9 +24,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly "com.github.hapily04.skriptminestom:common:1.0.0-alpha.1"
-    compileOnly "com.github.hapily04.skriptminestom:minestom:1.0.0-alpha.1"
-    compileOnly "net.minestom:minestom-sm:2026.03.04-1.21.11"
+    compileOnly "com.github.hapily04:skript-minestom:1.0.0-pre-alpha.3"
     implementation "org.joml:joml:1.10.8"
 }
 
