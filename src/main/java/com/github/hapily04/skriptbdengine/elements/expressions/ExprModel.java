@@ -9,7 +9,6 @@ import ch.njol.util.Kleenean;
 import com.github.hapily04.skriptbdengine.SkriptBDEngine;
 import com.github.hapily04.skriptbdengine.api.AnimationModel;
 import com.github.hapily04.skriptbdengine.api.BdEngineModelConverter;
-import com.github.hapily04.skriptbdengine.api.ModelManager;
 import org.bukkit.event.Event;
 import org.jetbrains.annotations.Nullable;
 
@@ -55,14 +54,13 @@ public class ExprModel extends SimpleExpression<AnimationModel> {
         try {
             return new AnimationModel[]{getAnimationModel(addon, modelId)};
         } catch (Exception e) {
-            addon.logger().error("An error occured whilst attempting to get model with id {}: {}", modelId, e.getMessage());
-            e.printStackTrace();
+//            addon.logger().error("An error occured whilst attempting to get model with id {}: {}", modelId, e.getMessage());
+//            e.printStackTrace();
             return new AnimationModel[0];
         }
     }
 
     private AnimationModel getAnimationModel(SkriptBDEngine addon, String modelId) throws IOException {
-        ModelManager modelManager = addon.getModelManager();
         File convertedFile = new File(addon.getConvertedFolder(), modelId + ".json");
         File functionFolder = new File(addon.getFunctionsFolder(), modelId);
         if (functionFolder.isDirectory() && functionFolder.exists()
@@ -70,7 +68,7 @@ public class ExprModel extends SimpleExpression<AnimationModel> {
             BdEngineModelConverter.convert(functionFolder, convertedFile);
         }
         if (!convertedFile.exists()) return null;
-        return modelManager.getAnimationModel(modelId).join();
+        return addon.getModelManager().getAnimationModel(modelId).join();
     }
 
     @Override

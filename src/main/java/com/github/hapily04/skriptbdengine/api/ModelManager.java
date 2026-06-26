@@ -50,7 +50,6 @@ public class ModelManager {
 
             String string = sb.toString();
             AnimationModel.JSON.Data data = GSON.fromJson(string, AnimationModel.JSON.Data.class);
-            AnimationModel.precomputeAnimationTransforms(data);
             models.put(modelName, data);
             modelModifiedAt.put(modelName, modified);
             return data;

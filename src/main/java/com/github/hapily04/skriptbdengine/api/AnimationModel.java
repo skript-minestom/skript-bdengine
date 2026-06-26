@@ -12,10 +12,7 @@ import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
-import net.minestom.server.entity.Entity;
-import net.minestom.server.entity.EntityType;
-import net.minestom.server.entity.Player;
-import net.minestom.server.entity.PlayerSkin;
+import net.minestom.server.entity.*;
 import net.minestom.server.entity.metadata.EntityMeta;
 import net.minestom.server.entity.metadata.display.AbstractDisplayMeta;
 import net.minestom.server.entity.metadata.display.BlockDisplayMeta;
@@ -45,11 +42,12 @@ public class AnimationModel extends StationaryEntity {
 
     public boolean isDestroyed = false;
     public List<List<Entity>> groups = new ArrayList<>();
-    private final Entity[] entities;
+    final Entity[] entities;
     private final Map<String, Entity> entitiesByTag = new HashMap<>();
     private final JSON.Data data;
     private RunningAnimation runningAnimation;
-    boolean initialized = false;
+    private boolean initialized = false;
+    private final AnimationModelMeta fakeMeta = new AnimationModelMeta(this, new MetadataHolder(null));
 
     public AnimationModel(JSON.Data data) {
         super(EntityType.MARKER);
@@ -75,6 +73,11 @@ public class AnimationModel extends StationaryEntity {
         this.entities = entities.toArray(new Entity[0]);
         groups.add(entities);
         initialized = true;
+    }
+
+    @Override
+    public @NonNull EntityMeta getEntityMeta() {
+        return fakeMeta;
     }
 
     public @Nullable Entity getEntityByTag(String tag) {
@@ -348,25 +351,6 @@ public class AnimationModel extends StationaryEntity {
         return entity;
     }
 
-    static void precomputeAnimationTransforms(JSON.Data data) {
-        if (data.animations == null) return;
-        for (JSON.AnimationJson animation : data.animations) {
-            if (animation.keyframes == null) continue;
-            for (JSON.KeyFrame keyFrame : animation.keyframes) {
-                if (keyFrame.objects == null) continue;
-                for (JSON.Object object : keyFrame.objects) {
-                    cacheCommandTransform(object.commands);
-                }
-            }
-        }
-    }
-
-    private static void cacheCommandTransform(JSON.Commands commands) {
-        if (commands == null || commands.transformation == null || commands.displayTransform != null) return;
-        commands.displayTransform = DisplayMatrixUtil.cacheFromFlat(commands.transformation);
-        commands.transformation = null;
-    }
-
     private static void applyAnimatedTransformation(AbstractDisplayMeta meta) {
         meta.setTransformationInterpolationStartDelta(0);
         meta.setTransformationInterpolationDuration(2);
@@ -460,7 +444,6 @@ public class AnimationModel extends StationaryEntity {
     static class JSON {
         public static class Commands {
             public float[] transformation;
-            public transient DisplayMatrixUtil.CachedTransform displayTransform;
             public String head;
             public String text;
             public Integer background;
@@ -568,11 +551,11 @@ public class AnimationModel extends StationaryEntity {
                             meta.setItemStack(meta.getItemStack().with(DataComponents.PROFILE, profile));
                         }
 
-                        if (commands.displayTransform != null) {
+                        if (commands.transformation != null) {
                             EntityMeta entityMeta = entity.getEntityMeta();
                             entityMeta.setNotifyAboutChanges(false);
                             if (entityMeta instanceof AbstractDisplayMeta displayMeta) {
-                                commands.displayTransform.applyTo(displayMeta);
+                                DisplayMatrixUtil.cacheFromFlat(commands.transformation).applyTo(displayMeta);
                                 applyAnimatedTransformation(displayMeta);
                             }
                             entityMeta.setNotifyAboutChanges(true);
