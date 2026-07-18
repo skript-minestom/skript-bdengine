@@ -47,10 +47,10 @@ public class AnimationModel extends StationaryEntity {
     private final JSON.Data data;
     private RunningAnimation runningAnimation;
     private boolean initialized = false;
-    private final AnimationModelMeta fakeMeta = new AnimationModelMeta(this, new MetadataHolder(null));
+    private final AnimationModelMeta fakeMeta = new AnimationModelMeta(this, new MetadataHolder(_ -> {}));
 
     public AnimationModel(JSON.Data data) {
-        super(EntityType.MARKER);
+        super(EntityType.ITEM_DISPLAY);
         this.data = data;
         List<Entity> entities = new ArrayList<>();
         if (data.nbt != null) {
@@ -226,6 +226,7 @@ public class AnimationModel extends StationaryEntity {
         }
     }
 
+    // todo revert fork commit & update to updateNewViewer
     @Override
     public boolean addViewer(@NonNull Player player) {
         boolean success = super.addViewer(player);
@@ -235,6 +236,7 @@ public class AnimationModel extends StationaryEntity {
         return success;
     }
 
+    // todo revert fork commit & update to updateNewViewer
     @Override
     public boolean removeViewer(@NonNull Player player) {
         boolean success = super.removeViewer(player);

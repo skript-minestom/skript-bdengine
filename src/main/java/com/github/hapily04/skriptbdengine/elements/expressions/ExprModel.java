@@ -26,20 +26,6 @@ public class ExprModel extends SimpleExpression<AnimationModel> {
     private Expression<String> modelId;
 
     @SuppressWarnings("unchecked")
-    private static boolean isFunctionFolderNewer(File functionFolder, File convertedFile) throws IOException {
-        long convertedAt = convertedFile.lastModified();
-        try (var paths = Files.walk(functionFolder.toPath())) {
-            return paths.filter(Files::isRegularFile)
-                .anyMatch(path -> {
-                    try {
-                        return Files.getLastModifiedTime(path).toMillis() > convertedAt;
-                    } catch (IOException e) {
-                        return false;
-                    }
-                });
-        }
-    }
-
     @Override
     public boolean init(Expression<?>[] expressions, int i, Kleenean kleenean, SkriptParser.ParseResult parseResult) {
         modelId = (Expression<String>) expressions[0];
@@ -69,6 +55,20 @@ public class ExprModel extends SimpleExpression<AnimationModel> {
         }
         if (!convertedFile.exists()) return null;
         return addon.getModelManager().getAnimationModel(modelId).join();
+    }
+
+    private static boolean isFunctionFolderNewer(File functionFolder, File convertedFile) throws IOException {
+        long convertedAt = convertedFile.lastModified();
+        try (var paths = Files.walk(functionFolder.toPath())) {
+            return paths.filter(Files::isRegularFile)
+                .anyMatch(path -> {
+                    try {
+                        return Files.getLastModifiedTime(path).toMillis() > convertedAt;
+                    } catch (IOException e) {
+                        return false;
+                    }
+                });
+        }
     }
 
     @Override
