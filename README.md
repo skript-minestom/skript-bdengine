@@ -16,3 +16,8 @@ You can also find public models [here](https://block-display.com/).
 4. Upload the folder to skript-bdengine/functions and rename it to the model id you want
 
 ### You can find documentation and examples for the addon [here](https://smdocs.hapily.me/?addons=skript-bdengine)!
+
+> [!NOTE]
+> The base for BDEngine support code for Minestom was given by a user from the Minestom discord,
+> but in order to keep up with BDEngine updates and solve some bugs, AI assistance has been used.
+> Nevertheless, though it doesn't mean it's bug-free, it has been tested and used to ensure accuracy.
