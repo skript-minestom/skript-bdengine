@@ -20,11 +20,10 @@ repositories {
     mavenCentral()
     maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
     maven { url = "https://maven.hapily.me/snapshots"}
-    maven { url = "https://maven.hapily.me/releases"}
 }
 
 dependencies {
-    compileOnly "com.github.hapily04:skript-minestom:1.0.0-pre-alpha.5"
+    compileOnly "com.github.hapily04:skript-minestom:1.0.0-alpha.1"
     implementation "org.joml:joml:1.10.8"
 }
 

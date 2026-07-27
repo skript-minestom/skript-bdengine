@@ -17,7 +17,7 @@ public class SkriptBDEngine extends JavaPlugin {
 
     private static SkriptBDEngine instance;
 
-    private Logger logger = LoggerFactory.getLogger(SkriptBDEngine.class);
+    private final Logger logger = LoggerFactory.getLogger(SkriptBDEngine.class);
     private File functionsFolder;
     private File convertedFolder;
     private SkriptAddon addonInstance;
