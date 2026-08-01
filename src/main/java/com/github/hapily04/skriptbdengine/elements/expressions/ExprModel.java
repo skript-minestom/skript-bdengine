@@ -1,6 +1,10 @@
 package com.github.hapily04.skriptbdengine.elements.expressions;
 
 import ch.njol.skript.Skript;
+import ch.njol.skript.doc.Description;
+import ch.njol.skript.doc.Examples;
+import ch.njol.skript.doc.Name;
+import ch.njol.skript.doc.Since;
 import ch.njol.skript.lang.Expression;
 import ch.njol.skript.lang.ExpressionType;
 import ch.njol.skript.lang.SkriptParser;
@@ -16,6 +20,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
+@Name("Create Model")
+@Description("Creates an entity that represents the BDEngine model. The id provided must match the name of the function file in skript-bdengine/functions")
+@Examples("""
+    command /model <model-id: string>:
+        trigger:
+            set {_model} to new model from {_model-id} # Converts the model to a json file internally and builds an entity from that
+            teleport {_model} to player in player's instance # spawns in the model""")
+@Since("1.0.0")
 public class ExprModel extends SimpleExpression<AnimationModel> {
 
     static {

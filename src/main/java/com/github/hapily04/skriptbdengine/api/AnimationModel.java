@@ -24,6 +24,7 @@ import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.network.player.ResolvableProfile;
 import net.minestom.server.timer.ExecutionType;
+import net.minestom.server.timer.Task;
 import net.minestom.server.timer.TaskSchedule;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
@@ -500,6 +501,7 @@ public class AnimationModel extends StationaryEntity {
     public class RunningAnimation {
         private boolean isStopped = false;
         private boolean loop = false;
+        private Task task;
         private final List<Runnable> onEnd = new ArrayList<>();
         private JSON.AnimationJson animation;
         private String animationId;
@@ -514,8 +516,12 @@ public class AnimationModel extends StationaryEntity {
 
         public void update() {
             if (isStopped) return;
+            if (task != null) {
+                task.cancel();
+                task = null;
+            }
             AtomicInteger frameId = new AtomicInteger();
-            MinecraftServer.getSchedulerManager().submitTask(() -> {
+            task = MinecraftServer.getSchedulerManager().submitTask(() -> {
                 if (isStopped) return TaskSchedule.stop();
                 List<JSON.KeyFrame> keyFrames = animation.keyframes;
                 if (frameId.get() >= keyFrames.size()) {
@@ -599,6 +605,10 @@ public class AnimationModel extends StationaryEntity {
 
         public RunningAnimation stop() {
             this.isStopped = true;
+            if (task != null) {
+                task.cancel();
+                task = null;
+            }
             return this;
         }
     }

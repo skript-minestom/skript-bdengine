@@ -82,7 +82,6 @@ public class Registration {
             .defaultExpression(new EventValueExpression<>(AnimationModel.class)));
 
         // Functions
-        //noinspection DataFlowIssue
         Functions.registerFunction(new JavaFunction<>("bdAnimation", new Parameter[]{
             new Parameter<>("id", DefaultClasses.STRING, true, null),
             new Parameter<>("loop", DefaultClasses.BOOLEAN, true, null)
