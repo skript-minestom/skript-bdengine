@@ -360,6 +360,44 @@ public class AnimationModel extends StationaryEntity {
         meta.setPosRotInterpolationDuration(2);
     }
 
+    private static boolean keyFramesVisuallyEqual(JSON.KeyFrame a, JSON.KeyFrame b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        List<JSON.Object> aObjects = a.objects;
+        List<JSON.Object> bObjects = b.objects;
+        if (aObjects == bObjects) return true;
+        if (aObjects == null || bObjects == null) return false;
+        if (aObjects.size() != bObjects.size()) return false;
+        for (int i = 0; i < aObjects.size(); i++) {
+            if (!objectsVisuallyEqual(aObjects.get(i), bObjects.get(i))) return false;
+        }
+        return true;
+    }
+
+    private static boolean objectsVisuallyEqual(JSON.Object a, JSON.Object b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        return Objects.equals(a.tag, b.tag) && commandsVisuallyEqual(a.commands, b.commands);
+    }
+
+    private static boolean commandsVisuallyEqual(JSON.Commands a, JSON.Commands b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        return Arrays.equals(a.transformation, b.transformation)
+            && Objects.equals(a.head, b.head)
+            && Objects.equals(a.text, b.text)
+            && Objects.equals(a.background, b.background)
+            && Objects.equals(a.textOpacity, b.textOpacity)
+            && Objects.equals(a.alignment, b.alignment)
+            && Objects.equals(a.lineWidth, b.lineWidth)
+            && Objects.equals(a.defaultBackground, b.defaultBackground)
+            && Objects.equals(a.x, b.x)
+            && Objects.equals(a.y, b.y)
+            && Objects.equals(a.z, b.z)
+            && Objects.equals(a.yaw, b.yaw)
+            && Objects.equals(a.pitch, b.pitch);
+    }
+
     private Block buildBlock(JsonObject block) {
         JsonObject propertiesObject = block.get("Properties").getAsJsonObject();
         Map<String, String> properties = new HashMap<>();
@@ -525,8 +563,13 @@ public class AnimationModel extends StationaryEntity {
                 if (isStopped) return TaskSchedule.stop();
                 List<JSON.KeyFrame> keyFrames = animation.keyframes;
                 if (frameId.get() >= keyFrames.size()) {
-                    if (loop) frameId.set(0);
-                    else return TaskSchedule.stop();
+                    if (!loop) return TaskSchedule.stop();
+                    int next = 0;
+                    if (keyFrames.size() > 1
+                        && keyFramesVisuallyEqual(keyFrames.getFirst(), keyFrames.getLast())) {
+                        next = 1;
+                    }
+                    frameId.set(next);
                 }
                 JSON.KeyFrame kf = keyFrames.get(frameId.getAndIncrement());
                 playKeyframeSounds(kf);
