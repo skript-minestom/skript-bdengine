@@ -122,7 +122,6 @@ public class AnimationModel extends StationaryEntity {
         return false;
     }
 
-    @SuppressWarnings("MagicConstant")
     @Override
     public @NonNull CompletableFuture<Void> teleport(@NonNull Pos position, @NonNull Vec velocity, long [] chunks,
                                                      int flags, boolean shouldConfirm) {
@@ -553,14 +552,14 @@ public class AnimationModel extends StationaryEntity {
         }
 
         public void update() {
-            if (isStopped) return;
+            if (isStopped || isDestroyed) return;
             if (task != null) {
                 task.cancel();
                 task = null;
             }
             AtomicInteger frameId = new AtomicInteger();
             task = MinecraftServer.getSchedulerManager().submitTask(() -> {
-                if (isStopped) return TaskSchedule.stop();
+                if (isStopped || isDestroyed) return TaskSchedule.stop();
                 List<JSON.KeyFrame> keyFrames = animation.keyframes;
                 if (frameId.get() >= keyFrames.size()) {
                     if (!loop) return TaskSchedule.stop();
