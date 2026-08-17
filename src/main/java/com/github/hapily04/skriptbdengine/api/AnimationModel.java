@@ -1,5 +1,7 @@
 package com.github.hapily04.skriptbdengine.api;
 
+import ch.njol.skript.util.NonTickingEntity;
+import com.github.hapily04.skriptbdengine.SkriptBDEngine;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -7,7 +9,6 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
-import net.minestom.server.MinecraftServer;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.component.DataComponents;
 import net.minestom.server.coordinate.Pos;
@@ -23,23 +24,18 @@ import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.network.player.ResolvableProfile;
-import net.minestom.server.timer.ExecutionType;
-import net.minestom.server.timer.Task;
-import net.minestom.server.timer.TaskSchedule;
+import org.bukkit.Bukkit;
+import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.hapily04.skriptbdengine.api.BdEngineModelConverter.GSON;
 
-public class AnimationModel extends StationaryEntity {
-
-    private static final ExecutorService ANIMATION_EXECUTOR = Executors.newCachedThreadPool();
+public class AnimationModel extends NonTickingEntity {
 
     public boolean isDestroyed = false;
     public List<List<Entity>> groups = new ArrayList<>();
@@ -253,7 +249,7 @@ public class AnimationModel extends StationaryEntity {
         boolean isBlock = json.get("id").getAsString().equals("minecraft:block_display");
         boolean isItem = json.get("id").getAsString().equals("minecraft:item_display");
 
-        Entity entity = new StationaryEntity(isItem ? EntityType.ITEM_DISPLAY : (isBlock ? EntityType.BLOCK_DISPLAY : EntityType.TEXT_DISPLAY));
+        Entity entity = new NonTickingEntity(isItem ? EntityType.ITEM_DISPLAY : (isBlock ? EntityType.BLOCK_DISPLAY : EntityType.TEXT_DISPLAY));
 
         JsonArray m = json.get("transformation").getAsJsonArray();
         DisplayMatrixUtil.CachedTransform transform = DisplayMatrixUtil.cacheFromJsonArray(m);
@@ -538,7 +534,7 @@ public class AnimationModel extends StationaryEntity {
     public class RunningAnimation {
         private boolean isStopped = false;
         private boolean loop = false;
-        private Task task;
+        private BukkitTask task;
         private final List<Runnable> onEnd = new ArrayList<>();
         private JSON.AnimationJson animation;
         private String animationId;
@@ -558,11 +554,17 @@ public class AnimationModel extends StationaryEntity {
                 task = null;
             }
             AtomicInteger frameId = new AtomicInteger();
-            task = MinecraftServer.getSchedulerManager().submitTask(() -> {
-                if (isStopped || isDestroyed) return TaskSchedule.stop();
+            task = Bukkit.getScheduler().runTaskTimerAsynchronously(SkriptBDEngine.getInstance(), () -> {
+                if (isStopped || isDestroyed) {
+                    task.cancel();
+                    return;
+                }
                 List<JSON.KeyFrame> keyFrames = animation.keyframes;
                 if (frameId.get() >= keyFrames.size()) {
-                    if (!loop) return TaskSchedule.stop();
+                    if (!loop) {
+                        task.cancel();
+                        return;
+                    }
                     int next = 0;
                     if (keyFrames.size() > 1
                         && keyFramesVisuallyEqual(keyFrames.getFirst(), keyFrames.getLast())) {
@@ -572,7 +574,7 @@ public class AnimationModel extends StationaryEntity {
                 }
                 JSON.KeyFrame kf = keyFrames.get(frameId.getAndIncrement());
                 playKeyframeSounds(kf);
-                if (kf.objects == null) return TaskSchedule.tick(2);
+                if (kf.objects == null) return;
                 for (JSON.Object obj : kf.objects) {
                     Entity entity = entitiesByTag.get(obj.tag);
                     if (entity == null) {
@@ -612,8 +614,7 @@ public class AnimationModel extends StationaryEntity {
                         }
                     }
                 }
-                return TaskSchedule.tick(2);
-            }, ExecutionType.TICK_END);
+            }, 0L, 2L);
         }
 
         public void runOnEnd() {
