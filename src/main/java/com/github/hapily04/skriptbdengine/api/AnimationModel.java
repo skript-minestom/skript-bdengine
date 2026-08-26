@@ -11,6 +11,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.component.DataComponents;
+import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.*;
@@ -44,6 +45,7 @@ public class AnimationModel extends NonTickingEntity {
     private final JSON.Data data;
     private RunningAnimation runningAnimation;
     private boolean initialized = false;
+    private float modelScale = 1f;
     private final AnimationModelMeta fakeMeta = new AnimationModelMeta(this, new MetadataHolder(_ -> {}));
 
     public AnimationModel(JSON.Data data) {
@@ -428,9 +430,9 @@ public class AnimationModel extends NonTickingEntity {
             float volume = soundEffect.volume != null ? soundEffect.volume : 1f;
             float pitch = soundEffect.pitch != null ? soundEffect.pitch : 1f;
             Pos at = new Pos(
-                root.x() + (soundEffect.x != null ? soundEffect.x : 0d),
-                root.y() + (soundEffect.y != null ? soundEffect.y : 0d),
-                root.z() + (soundEffect.z != null ? soundEffect.z : 0d)
+                root.x() + (soundEffect.x != null ? soundEffect.x : 0d) * modelScale,
+                root.y() + (soundEffect.y != null ? soundEffect.y : 0d) * modelScale,
+                root.z() + (soundEffect.z != null ? soundEffect.z : 0d) * modelScale
             );
             Sound sound = Sound.sound(Key.key(soundKey), source, volume, pitch);
             for (Player player : players) {
@@ -448,6 +450,35 @@ public class AnimationModel extends NonTickingEntity {
 
     public AnimationModel createCopy() {
         return new AnimationModel(data);
+    }
+
+    public float getModelScale() {
+        return modelScale;
+    }
+
+    public void setModelScale(float scale) {
+        if (scale <= 0f || Float.isNaN(scale) || Float.isInfinite(scale)) return;
+        if (!initialized || modelScale == scale) {
+            modelScale = scale;
+            return;
+        }
+        float ratio = scale / modelScale;
+        for (Entity e : entities) {
+            if (!(e.getEntityMeta() instanceof AbstractDisplayMeta meta)) continue;
+            Point translation = meta.getTranslation();
+            meta.setTranslation(new Vec(
+                translation.x() * ratio,
+                translation.y() * ratio,
+                translation.z() * ratio
+            ));
+            Vec partScale = meta.getScale();
+            meta.setScale(new Vec(
+                partScale.x() * ratio,
+                partScale.y() * ratio,
+                partScale.z() * ratio
+            ));
+        }
+        modelScale = scale;
     }
 
     public String getCurrentAnimation() {
@@ -584,14 +615,15 @@ public class AnimationModel extends NonTickingEntity {
 
                     JSON.Commands commands = obj.commands;
                     if (commands != null) {
+                        float scale = modelScale;
                         if (commands.x != null && commands.y != null && commands.z != null) {
                             Pos root = AnimationModel.this.getPosition();
                             float yaw = commands.yaw != null ? commands.yaw : root.yaw();
                             float pitch = commands.pitch != null ? commands.pitch : root.pitch();
                             entity.teleport(new Pos(
-                                root.x() + commands.x,
-                                root.y() + commands.y,
-                                root.z() + commands.z,
+                                root.x() + commands.x * scale,
+                                root.y() + commands.y * scale,
+                                root.z() + commands.z * scale,
                                 yaw,
                                 pitch
                             ));
@@ -607,7 +639,7 @@ public class AnimationModel extends NonTickingEntity {
                             EntityMeta entityMeta = entity.getEntityMeta();
                             entityMeta.setNotifyAboutChanges(false);
                             if (entityMeta instanceof AbstractDisplayMeta displayMeta) {
-                                DisplayMatrixUtil.cacheFromFlat(commands.transformation).applyTo(displayMeta);
+                                DisplayMatrixUtil.cacheFromFlat(commands.transformation).applyTo(displayMeta, scale);
                                 applyAnimatedTransformation(displayMeta);
                             }
                             entityMeta.setNotifyAboutChanges(true);

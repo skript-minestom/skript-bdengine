@@ -80,13 +80,13 @@ public class AnimationModelMeta extends AbstractDisplayMeta {
 
     @Override
     public @NonNull Vec getScale() {
-        AbstractDisplayMeta meta = firstDisplayMeta();
-        return meta != null ? meta.getScale() : super.getScale();
+        float scale = animationModel.getModelScale();
+        return new Vec(scale, scale, scale);
     }
 
     @Override
     public void setScale(@NonNull Vec value) {
-        forEachDisplayMeta(meta -> meta.setScale(value));
+        animationModel.setModelScale((float) value.x());
     }
 
     @Override

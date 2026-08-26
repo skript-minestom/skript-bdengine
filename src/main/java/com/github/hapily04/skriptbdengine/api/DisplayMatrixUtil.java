@@ -18,8 +18,20 @@ final class DisplayMatrixUtil {
 
     record CachedTransform(float[] translation, float[] leftRotation, float[] scale, float[] rightRotation) {
         void applyTo(AbstractDisplayMeta meta) {
-            meta.setTranslation(new Vec(translation[0], translation[1], translation[2]));
-            meta.setScale(new Vec(scale[0], scale[1], scale[2]));
+            applyTo(meta, 1f);
+        }
+
+        void applyTo(AbstractDisplayMeta meta, float modelScale) {
+            meta.setTranslation(new Vec(
+                translation[0] * modelScale,
+                translation[1] * modelScale,
+                translation[2] * modelScale
+            ));
+            meta.setScale(new Vec(
+                scale[0] * modelScale,
+                scale[1] * modelScale,
+                scale[2] * modelScale
+            ));
             meta.setLeftRotation(leftRotation);
             meta.setRightRotation(rightRotation);
         }
